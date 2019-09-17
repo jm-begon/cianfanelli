@@ -13,38 +13,27 @@ def load(fpath):
     return img < threshold  # inverse color
 
 
-def noise_within_img(bin_img, n_layers=10, p=.1):
-    # TODO generate points in a sparse way
-    noise = np.random.rand(n_layers, bin_img.shape[0], bin_img.shape[1])
-    noise = noise < p
-    points = noise * bin_img
-    return np.moveaxis(points, 0, 2)
+def img_to_points(bin_img, n_points=1000, max_depth=1.):
+    height = bin_img.shape[0]
+    points_2d = np.argwhere(bin_img)
+    indices = np.arange(len(points_2d))
+    np.random.shuffle(indices)
+    points_2d = points_2d[indices[:n_points]]
 
+    verticals = points_2d[:, 0]
+    horizontals = points_2d[:, 1]
+    depths = np.random.rand(n_points, 1)
 
-def white_to_points(img):
-    # TODO more efficient
-    H, W, D = img.shape
-    verticals = []
-    horizontals = []
-    depths = []
-    for row in range(H):
-        for col in range(W):
-            for cha in range(D):
-                if img[row, col, cha] > 0:
-                    verticals.append(row)
-                    horizontals.append(col)
-                    depths.append(cha)
-
-    depth_noise = np.random.uniform(-.5, .5, len(depths))
-
-    zs = -np.array(verticals) + H
+    zs = -np.array(verticals) + height
     ys = np.array(horizontals)
-    xs = np.array(depths) + depth_noise
+    xs = np.array(depths)
 
     return xs, ys, zs
 
 
 def plot_scatter3D(xs, ys, zs, elevation=45, azimut=45):
+    # elevation=0 and azimut=0 is front-view
+    # elevation=0, and azimut=90 is side-view
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.view_init(elevation, azimut)
@@ -60,19 +49,25 @@ def plot_scatter3D(xs, ys, zs, elevation=45, azimut=45):
     return ax.get_proj()
 
 
+def plot_save_close(xs, ys, zs, elevation=0, azimut=0,
+                    path="../examples/remove_me.png"):
+    plot_scatter3D(xs, ys, zs, elevation, azimut)
+    try:
+        plt.savefig(path)
+    finally:
+        plt.close()
+
 if __name__ == '__main__':
+    np.random.seed(42)
     bin_img = load("../resources/test.png")
-    noise = noise_within_img(bin_img, p=0.001)
-    xs, ys, zs = white_to_points(noise)
-    # proj = plot_scatter3D(xs, ys, zs, 0, 90)  # Side view
-    # proj = plot_scatter3D(xs, ys, zs, 0, 0)  # Front view
+    xs, ys, zs = img_to_points(bin_img, n_points=5000)
 
     azimuts = np.linspace(0, 360, 100)
     num_len = len(str(len(azimuts)))
     for i, azimut in enumerate(azimuts):
-        plot_scatter3D(xs, ys, zs, 0, azimut-90)
-        plt.savefig("../examples/test/frame_{}".format(str(i).zfill(num_len)))
-        plt.close()
+        fname = "../examples/test/frame_{}".format(str(i).zfill(num_len))
+        plot_save_close(xs, ys, zs, azimut=azimut-90, path=fname)
+        # convert -delay 20 frame_*.png -loop 0 test.gif
 
 
 
